@@ -40,12 +40,13 @@ public class JwtValidator extends OncePerRequestFilter {
         String jwt = request.getHeader("Authorization");
         String requestURI = request.getRequestURI();
 
-        // THE FINAL FIX: If the request is for an auth path, skip validation.
+        // THE FINAL FIX: If the request is for an auth path, skip validation and let it pass.
         if (requestURI.startsWith("/api/auth")) {
             filterChain.doFilter(request, response);
             return;
         }
 
+        // The rest of the original code only runs if it's NOT an auth path.
         if (jwt != null && jwt.startsWith("Bearer ")) {
             try {
                 jwt = jwt.substring(7);
@@ -62,7 +63,7 @@ public class JwtValidator extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
             } catch (Exception e) {
-                throw new BadCredentialsException("Invalid token received...");
+                throw new BadCredentialsException("Invalid token recieved...");
             }
         }
 
