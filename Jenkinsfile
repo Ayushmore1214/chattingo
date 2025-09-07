@@ -12,7 +12,7 @@ pipeline {
         stage('Git Clone') {
             steps {
                 echo 'Cloning the repository...'
-                git branch: 'main', url: "https://github.com/YOUR_USERNAME/chattingo.git"
+                git branch: 'main', url: "https://github.com/Ayushmore1214/chattingo.git"
             }
         }
 
