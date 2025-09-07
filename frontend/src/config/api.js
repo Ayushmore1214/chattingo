@@ -1,1 +1,2 @@
-export const BASE_API_URL = process.env.REACT_APP_API_URL || "";
+// This is the CORRECT line
+export const BASE_API_URL = process.env.REACT_APP_API_URL || "/api";
