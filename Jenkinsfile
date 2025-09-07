@@ -1,10 +1,10 @@
 pipeline {
     agent any
 
-    environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials') 
-        DOCKERHUB_USERNAME = "yourdockerhubusername"
-        REPO_NAME = "chattingo"
+    // We define the parameters we just created in the Jenkins UI
+    parameters {
+        string(name: 'DOCKER_USER', defaultValue: '', description: 'Your Docker Hub Username')
+        password(name: 'DOCKER_PASS', defaultValue: '', description: 'Your Docker Hub Password or Token')
     }
 
     stages {
@@ -24,17 +24,16 @@ pipeline {
 
         stage('Push to Docker Hub') {
             steps {
-                echo 'Logging into Docker Hub and pushing images with sudo...'
-                withCredentials([usernamePassword(credentialsId: DOCKERHUB_CREDENTIALS, passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                    sh "sudo docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}"
+                echo 'Logging into Docker Hub and pushing images directly...'
+                // This uses the parameters directly instead of the credential store
+                sh "sudo docker login -u ${params.DOCKER_USER} -p ${params.DOCKER_PASS}"
 
-                    sh "sudo docker tag chattingo-frontend:latest ${DOCKERHUB_USERNAME}/${REPO_NAME}-frontend:latest"
-                    sh "sudo docker tag chattingo-backend:latest ${DOCKERHUB_USERNAME}/${REPO_NAME}-backend:latest"
+                sh "sudo docker tag chattingo-pipeline_frontend:latest ${params.DOCKER_USER}/chattingo-frontend:latest"
+                sh "sudo docker tag chattingo-pipeline_backend:latest ${params.DOCKER_USER}/chattingo-backend:latest"
 
-                    sh "sudo docker push ${DOCKERHUB_USERNAME}/${REPO_NAME}-frontend:latest"
-                    sh "sudo docker push ${DOCKERHUB_USERNAME}/${REPO_NAME}-backend:latest"
-                    sh "sudo docker logout"
-                }
+                sh "sudo docker push ${params.DOCKER_USER}/chattingo-frontend:latest"
+                sh "sudo docker push ${params.DOCKER_USER}/chattingo-backend:latest"
+                sh "sudo docker logout"
             }
         }
         
