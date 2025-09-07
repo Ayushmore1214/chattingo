@@ -41,6 +41,7 @@ pipeline {
             steps {
                 echo 'Deploying application to the VPS with sudo...'
                 sh 'cp /var/lib/jenkins/.env .'
+                 sh 'sudo docker-compose down'
                 sh 'sudo docker-compose pull'
                 sh 'sudo docker-compose up -d'
             }
