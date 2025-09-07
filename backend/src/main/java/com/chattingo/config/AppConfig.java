@@ -37,33 +37,36 @@ public class AppConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http.sessionManagement(management -> management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(authorize -> authorize.requestMatchers("/api/**").authenticated()
-                        .anyRequest().permitAll())
-                .addFilterBefore(jwtValidator, BasicAuthenticationFilter.class)
-                .csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.configurationSource(new CorsConfigurationSource() {
-                    @SuppressWarnings("null")
-                    @Override
-                    public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
-                        CorsConfiguration cfg = new CorsConfiguration();
+            // THIS IS THE CORRECTED LOGIC
+            .authorizeHttpRequests(authorize -> authorize
+                .requestMatchers("/api/auth/**").permitAll() // Allow access to signup/login
+                .anyRequest().authenticated()               // Secure EVERYTHING else
+            )
+            .addFilterBefore(jwtValidator, BasicAuthenticationFilter.class)
+            .csrf(csrf -> csrf.disable())
+            .cors(cors -> cors.configurationSource(new CorsConfigurationSource() {
+                @SuppressWarnings("null")
+                @Override
+                public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
+                    CorsConfiguration cfg = new CorsConfiguration();
 
-                        // Parse allowed origins from environment variable
-                        String[] origins = allowedOrigins.split(",");
-                        cfg.setAllowedOrigins(Arrays.asList(origins));
-                        cfg.setAllowedOriginPatterns(Arrays.asList(origins));
+                    // Parse allowed origins from environment variable
+                    String[] origins = allowedOrigins.split(",");
+                    cfg.setAllowedOrigins(Arrays.asList(origins));
+                    cfg.setAllowedOriginPatterns(Arrays.asList(origins));
 
-                        // Parse allowed methods from environment variable
-                        String[] methods = allowedMethods.split(",");
-                        cfg.setAllowedMethods(Arrays.asList(methods));
-                        
-                        cfg.setAllowedHeaders(Collections.singletonList("*"));
-                        cfg.setExposedHeaders(Arrays.asList("Authorization"));
-                        cfg.setAllowCredentials(true);
-                        cfg.setMaxAge(3600L);
+                    // Parse allowed methods from environment variable
+                    String[] methods = allowedMethods.split(",");
+                    cfg.setAllowedMethods(Arrays.asList(methods));
+                    
+                    cfg.setAllowedHeaders(Collections.singletonList("*"));
+                    cfg.setExposedHeaders(Arrays.asList("Authorization"));
+                    cfg.setAllowCredentials(true);
+                    cfg.setMaxAge(3600L);
 
-                        return cfg;
-                    }
-                })).formLogin(Customizer.withDefaults()).httpBasic(Customizer.withDefaults());
+                    return cfg;
+                }
+            })).formLogin(Customizer.withDefaults()).httpBasic(Customizer.withDefaults());
 
         return http.build();
     }
