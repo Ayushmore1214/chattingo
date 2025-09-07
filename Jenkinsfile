@@ -43,6 +43,8 @@ pipeline {
             steps {
                 echo 'Deploying application to the VPS...'
                 // This stage will pull the new images from Docker Hub and restart the services
+                sh 'cp /var/lib/jenkins/.env .'
+                
                 sh 'docker-compose pull'
                 sh 'docker-compose up -d'
             }
