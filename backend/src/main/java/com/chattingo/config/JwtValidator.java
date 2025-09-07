@@ -38,10 +38,16 @@ public class JwtValidator extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String jwt = request.getHeader("Authorization");
+        String requestURI = request.getRequestURI();
 
-        if (jwt != null) {
+        // THE FINAL FIX: If the request is for an auth path, skip validation.
+        if (requestURI.startsWith("/api/auth")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        if (jwt != null && jwt.startsWith("Bearer ")) {
             try {
-
                 jwt = jwt.substring(7);
 
                 Claims claim = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(jwt).getBody();
@@ -56,11 +62,10 @@ public class JwtValidator extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
             } catch (Exception e) {
-                throw new BadCredentialsException("Invalid token recieved...");
+                throw new BadCredentialsException("Invalid token received...");
             }
         }
 
         filterChain.doFilter(request, response);
     }
-
 }
