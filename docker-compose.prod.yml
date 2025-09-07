@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: chattingo-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - chattingo-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  backend:
+    # NOTICE we are now using IMAGE instead of BUILD
+    image: ayush12141/chattingo-backend:latest
+    container_name: chattingo-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=${DB_ROOT_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+    networks:
+      - chattingo-net
+
+  frontend:
+    # NOTICE we are now using IMAGE instead of BUILD
+    image: ayush12141/chattingo-frontend:latest
+    container_name: chattingo-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - chattingo-net
+
+networks:
+  chattingo-net:
+    driver: bridge
+
+volumes:
+  db_data:
