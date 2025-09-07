@@ -18,28 +18,33 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-// This is no longer a @Component. AppConfig creates it.
+// THIS IS NO LONGER A @Component. It is a plain object.
 public class JwtValidator extends OncePerRequestFilter {
+
+    private final SecretKey key;
+
+    // It takes the secret key directly from AppConfig. No more magic.
+    public JwtValidator(String jwtSecret) {
+        this.key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         
-        String jwt = request.getHeader(JwtConstant.JWT_HEADER);
+        String jwt = request.getHeader("Authorization");
 
         if (jwt != null && jwt.startsWith("Bearer ")) {
             jwt = jwt.substring(7);
             try {
-                SecretKey key = Keys.hmacShaKeyFor(JwtConstant.SECRET_KEY.getBytes());
-                Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(jwt).getBody();
-                String email = String.valueOf(claims.get("email"));
-                String authorities = String.valueOf(claims.get("authorities"));
+                Claims claim = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(jwt).getBody();
+                String username = String.valueOf(claim.get("email"));
+                String authorities = String.valueOf(claim.get("authorities"));
                 List<GrantedAuthority> auths = AuthorityUtils.commaSeparatedStringToAuthorityList(authorities);
-                Authentication authentication = new UsernamePasswordAuthenticationToken(email, null, auths);
+                Authentication authentication = new UsernamePasswordAuthenticationToken(username, null, auths);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (Exception e) {
-                // If the token is bad, we throw an error.
-                throw new BadCredentialsException("Invalid token received...", e);
+                throw new BadCredentialsException("Invalid token received...");
             }
         }
         
@@ -47,9 +52,10 @@ public class JwtValidator extends OncePerRequestFilter {
     }
 
     // This method tells Spring which paths this filter should NOT run on.
-    // This is the key to the entire problem.
+    // This provides a second, redundant layer of protection to ensure it works.
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
-        return request.getServletPath().startsWith("/api/auth");
+        String path = request.getServletPath();
+        return path.startsWith("/api/auth");
     }
 }
