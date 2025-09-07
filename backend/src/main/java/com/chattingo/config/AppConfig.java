@@ -3,10 +3,8 @@ package com.chattingo.config;
 import java.util.Arrays;
 import java.util.Collections;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -21,58 +19,42 @@ import jakarta.servlet.http.HttpServletRequest;
 @Configuration
 public class AppConfig {
 
-    private final JwtValidator jwtValidator;
-
-    @Value("${cors.allowed.origins:http://localhost:3000,http://localhost}")
-    private String allowedOrigins;
-
-    @Value("${cors.allowed.methods:GET,POST,PUT,DELETE,OPTIONS}")
-    private String allowedMethods;
-
-    public AppConfig(JwtValidator jwtValidator) {
-        this.jwtValidator = jwtValidator;
-    }
-
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-
         http.sessionManagement(management -> management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            // THIS IS THE CORRECTED LOGIC
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/api/auth/**").permitAll() // Allow access to signup/login
-                .anyRequest().authenticated()               // Secure EVERYTHING else
+                // Rule 1: Allow ANYONE to access the authentication and websocket endpoints.
+                .requestMatchers("/api/auth/**", "/ws/**").permitAll()
+                // Rule 2: ALL other requests must be authenticated.
+                .anyRequest().authenticated()
             )
-            .addFilterBefore(jwtValidator, BasicAuthenticationFilter.class)
+            // The JwtValidator is now added correctly into the filter chain.
+            .addFilterBefore(new JwtValidator(), BasicAuthenticationFilter.class)
             .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(new CorsConfigurationSource() {
-                @SuppressWarnings("null")
-                @Override
-                public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
-                    CorsConfiguration cfg = new CorsConfiguration();
-
-                    // Parse allowed origins from environment variable
-                    String[] origins = allowedOrigins.split(",");
-                    cfg.setAllowedOrigins(Arrays.asList(origins));
-                    cfg.setAllowedOriginPatterns(Arrays.asList(origins));
-
-                    // Parse allowed methods from environment variable
-                    String[] methods = allowedMethods.split(",");
-                    cfg.setAllowedMethods(Arrays.asList(methods));
-                    
-                    cfg.setAllowedHeaders(Collections.singletonList("*"));
-                    cfg.setExposedHeaders(Arrays.asList("Authorization"));
-                    cfg.setAllowCredentials(true);
-                    cfg.setMaxAge(3600L);
-
-                    return cfg;
-                }
-            })).formLogin(Customizer.withDefaults()).httpBasic(Customizer.withDefaults());
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()));
 
         return http.build();
     }
 
+    // This is a cleaner way to handle CORS configuration
+    private CorsConfigurationSource corsConfigurationSource() {
+        return new CorsConfigurationSource() {
+            @Override
+            public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
+                CorsConfiguration cfg = new CorsConfiguration();
+                cfg.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost", "http://72.60.111.63")); // Added your server IP
+                cfg.setAllowedMethods(Collections.singletonList("*"));
+                cfg.setAllowCredentials(true);
+                cfg.setAllowedHeaders(Collections.singletonList("*"));
+                cfg.setExposedHeaders(Arrays.asList("Authorization"));
+                cfg.setMaxAge(3600L);
+                return cfg;
+            }
+        };
+    }
+
     @Bean
-    PasswordEncoder passwordEncoder() {
+    public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 }

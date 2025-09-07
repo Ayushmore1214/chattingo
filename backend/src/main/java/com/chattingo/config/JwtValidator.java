@@ -1,75 +1,64 @@
 package com.chattingo.config;
 
-import java.util.Arrays;
-import java.util.Collections;
+import java.io.IOException;
+import java.util.List;
 
+import javax.crypto.SecretKey;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
-@Configuration
-public class AppConfig {
+// NOTE: This class is NO LONGER a @Component. AppConfig will create it.
+public class JwtValidator extends OncePerRequestFilter {
 
-    private final JwtValidator jwtValidator;
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
 
-    @Value("${cors.allowed.origins:http://localhost:3000,http://localhost}")
-    private String allowedOrigins;
+        String jwt = request.getHeader(JwtConstant.JWT_HEADER);
+        String requestURI = request.getRequestURI();
 
-    @Value("${cors.allowed.methods:GET,POST,PUT,DELETE,OPTIONS}")
-    private String allowedMethods;
+        // If the request is for an auth path, we do nothing and let it pass.
+        if (requestURI.startsWith("/api/auth")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
-    public AppConfig(JwtValidator jwtValidator) {
-        this.jwtValidator = jwtValidator;
-    }
+        // Only for non-auth paths, we check for a valid token.
+        if (jwt != null && jwt.startsWith("Bearer ")) {
+            try {
+                jwt = jwt.substring(7);
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+                SecretKey key = Keys.hmacShaKeyFor(JwtConstant.SECRET_KEY.getBytes());
+                Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(jwt).getBody();
+                String email = String.valueOf(claims.get("email"));
+                String authorities = String.valueOf(claims.get("authorities"));
 
-        http.sessionManagement(management -> management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(authorize -> authorize
-                // Rule 1: Allow ANYONE to access the authentication endpoints
-                .requestMatchers("/api/auth/**").permitAll()
-                // Rule 2: Secure ALL OTHER requests. They must be authenticated.
-                .anyRequest().authenticated()
-            )
-            // THIS IS THE CRITICAL PART: The JwtValidator is now added AFTER the rules above,
-            // so it will only run on the requests that are required to be authenticated.
-            .addFilterBefore(jwtValidator, BasicAuthenticationFilter.class)
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(new CorsConfigurationSource() {
-                @SuppressWarnings("null")
-                @Override
-                public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
-                    CorsConfiguration cfg = new CorsConfiguration();
-                    String[] origins = allowedOrigins.split(",");
-                    cfg.setAllowedOrigins(Arrays.asList(origins));
-                    cfg.setAllowedOriginPatterns(Arrays.asList(origins));
-                    String[] methods = allowedMethods.split(",");
-                    cfg.setAllowedMethods(Arrays.asList(methods));
-                    cfg.setAllowedHeaders(Collections.singletonList("*"));
-                    cfg.setExposedHeaders(Arrays.asList("Authorization"));
-                    cfg.setAllowCredentials(true);
-                    cfg.setMaxAge(3600L);
-                    return cfg;
-                }
-            })).formLogin(Customizer.withDefaults()).httpBasic(Customizer.withDefaults());
+                List<GrantedAuthority> auths = AuthorityUtils.commaSeparatedStringToAuthorityList(authorities);
 
-        return http.build();
-    }
-
-    @Bean
-    PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+                Authentication authentication = new UsernamePasswordAuthenticationToken(email, null, auths);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            } catch (Exception e) {
+                throw new BadCredentialsException("Invalid token received...", e);
+            }
+        }
+        
+        filterChain.doFilter(request, response);
     }
 }
