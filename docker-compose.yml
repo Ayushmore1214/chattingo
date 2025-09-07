@@ -12,17 +12,16 @@ services:
       - db_data:/var/lib/mysql
     networks:
       - chattingo-net
-    # THIS IS NEW: It periodically checks if the database is ready
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 20s
       retries: 10
 
   backend:
-    build: ./backend
+    # NOTICE we are now using IMAGE instead of BUILD
+    image: ayush12141/chattingo-backend:latest
     container_name: chattingo-backend
     restart: unless-stopped
-    # THIS IS UPDATED: It now waits for the db to be healthy
     depends_on:
       db:
         condition: service_healthy
@@ -35,11 +34,12 @@ services:
       - chattingo-net
 
   frontend:
-    build:
-      context: ./frontend
+    # NOTICE we are now using IMAGE instead of BUILD
+    image: ayush12141/chattingo-frontend:latest
     container_name: chattingo-frontend
     restart: unless-stopped
-
+    ports:
+      - "80:80"
     depends_on:
       - backend
     networks:
